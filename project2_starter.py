@@ -41,7 +41,33 @@ def load_listing_results(html_path) -> list[tuple]:
     # ==============================
     # YOUR CODE STARTS HERE
     # ==============================
-    pass
+    with open(html_path, "r", encoding="utf-8-sig") as f:
+        soup = BeautifulSoup(f.read(), "html.parser")
+
+    listings = []
+    seen_ids = set()
+
+    # Look through all links and find ones that point to room pages
+    for a in soup.find_all("a", href=True):
+        href = a.get("href", "")
+        match = re.search(r"/rooms/(\d+)", href)
+        if match:
+            listing_id = match.group(1)
+
+            # Try to get the title from link text first
+            title = a.get_text(" ", strip=True)
+
+            # Fallbacks if text is empty
+            if not title:
+                title = a.get("aria-label", "").strip()
+            if not title:
+                title = a.get("title", "").strip()
+
+            if listing_id not in seen_ids and title:
+                listings.append((title, listing_id))
+                seen_ids.add(listing_id)
+
+    return listings
     # ==============================
     # YOUR CODE ENDS HERE
     # ==============================
