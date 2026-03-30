@@ -96,7 +96,78 @@ def get_listing_details(listing_id) -> dict:
     # ==============================
     # YOUR CODE STARTS HERE
     # ==============================
-    pass
+    base_dir = os.path.abspath(os.path.dirname(__file__))
+    listing_path = os.path.join(base_dir, "html_files", f"listing_{listing_id}.html")
+
+    with open(listing_path, "r", encoding="utf-8-sig") as f:
+        soup = BeautifulSoup(f.read(), "html.parser")
+
+    page_text = soup.get_text(" ", strip=True)
+
+    # policy number
+    policy_number = ""
+    policy_match = re.search(r"(STR-\d{7}|Pending|Exempt)", page_text, re.IGNORECASE)
+    if policy_match:
+        policy_number = policy_match.group(1)
+        if policy_number.lower() == "pending":
+            policy_number = "Pending"
+        elif policy_number.lower() == "exempt":
+            policy_number = "Exempt"
+
+    # host type
+    host_type = "Not Superhost"
+    if re.search(r"Superhost", page_text, re.IGNORECASE):
+        host_type = "Superhost"
+
+    # host name
+    host_name = ""
+    host_match = re.search(r"Hosted by\s+([A-Za-z]+)", page_text, re.IGNORECASE)
+    if host_match:
+        host_name = host_match.group(1)
+    else:
+        alt_host_match = re.search(r"hosted by\s+([A-Za-z]+)", page_text, re.IGNORECASE)
+        if alt_host_match:
+            host_name = alt_host_match.group(1)
+
+    # room type
+    room_type = ""
+    room_type_match = re.search(
+        r"(Entire room|Private room|Shared room|Hotel room|Entire place|Private room in|Shared room in|Room in)",
+        page_text,
+        re.IGNORECASE
+    )
+
+    if room_type_match:
+        found = room_type_match.group(1).lower()
+        if "entire" in found:
+            room_type = "Entire Room"
+        elif "private" in found:
+            room_type = "Private Room"
+        elif "shared" in found:
+            room_type = "Shared Room"
+        elif "hotel" in found:
+            room_type = "Hotel Room"
+
+    # location rating
+    location_rating = 0.0
+    location_match = re.search(r"Location\s*([0-9]\.[0-9])", page_text, re.IGNORECASE)
+    if not location_match:
+        location_match = re.search(r"Location rating\s*([0-9]\.[0-9])", page_text, re.IGNORECASE)
+    if not location_match:
+        location_match = re.search(r"([0-9]\.[0-9])\s*Location", page_text, re.IGNORECASE)
+
+    if location_match:
+        location_rating = float(location_match.group(1))
+
+    return {
+        listing_id: {
+            "policy_number": policy_number,
+            "host_type": host_type,
+            "host_name": host_name,
+            "room_type": room_type,
+            "location_rating": location_rating
+        }
+    }
     # ==============================
     # YOUR CODE ENDS HERE
     # ==============================
