@@ -305,7 +305,17 @@ def validate_policy_numbers(data) -> list[str]:
     # ==============================
     # YOUR CODE STARTS HERE
     # ==============================
-    pass
+    invalid = []
+
+    for row in data:
+        listing_id = row[1]
+        policy = row[2]
+
+        if policy != "Pending" and policy != "Exempt":
+            if not re.fullmatch(r"20\d{2}-00\d{4}STR", policy) and not re.fullmatch(r"STR-\d{7}", policy):
+                invalid.append(listing_id)
+
+    return invalid
     # ==============================
     # YOUR CODE ENDS HERE
     # ==============================
