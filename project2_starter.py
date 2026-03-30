@@ -19,7 +19,7 @@ import csv
 import unittest
 import requests  # kept for extra credit parity
 
-
+this is a test
 # IMPORTANT NOTE:
 """
 If you are getting "encoding errors" while trying to open, read, or write from a file, add the following argument to any of your open() functions:
@@ -226,7 +226,23 @@ def output_csv(data, filename) -> None:
     # ==============================
     # YOUR CODE STARTS HERE
     # ==============================
-    pass
+    data.sort(key=lambda x: x[6], reverse=True)
+
+    with open(filename, "w", newline="", encoding="utf-8-sig") as f:
+        writer = csv.writer(f)
+
+        writer.writerow([
+            "Listing Title",
+            "Listing ID",
+            "Policy Number",
+            "Host Type",
+            "Host Name",
+            "Room Type",
+            "Location Rating"
+        ])
+
+        for row in data:
+            writer.writerow(row)
     # ==============================
     # YOUR CODE ENDS HERE
     # ==============================
