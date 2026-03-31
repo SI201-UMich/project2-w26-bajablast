@@ -19,7 +19,7 @@ import csv
 import unittest
 import requests  # kept for extra credit parity
 
-# this is a test
+
 # IMPORTANT NOTE:
 """
 If you are getting "encoding errors" while trying to open, read, or write from a file, add the following argument to any of your open() functions:
@@ -45,27 +45,13 @@ def load_listing_results(html_path) -> list[tuple]:
         soup = BeautifulSoup(f.read(), "html.parser")
 
     listings = []
-    seen_ids = set()
 
-    # Look through all links and find ones that point to room pages
-    for a in soup.find_all("a", href=True):
-        href = a.get("href", "")
-        match = re.search(r"/rooms/(\d+)", href)
-        if match:
-            listing_id = match.group(1)
+    title_divs = soup.find_all(id=re.compile(r"^title_\d+$"))
 
-            # Try to get the title from link text first
-            title = a.get_text(" ", strip=True)
-
-            # Fallbacks if text is empty
-            if not title:
-                title = a.get("aria-label", "").strip()
-            if not title:
-                title = a.get("title", "").strip()
-
-            if listing_id not in seen_ids and title:
-                listings.append((title, listing_id))
-                seen_ids.add(listing_id)
+    for div in title_divs:
+        listing_title = div.get_text(strip=True)
+        listing_id = div["id"].replace("title_", "")
+        listings.append((listing_title, listing_id))
 
     return listings
     # ==============================
@@ -106,55 +92,49 @@ def get_listing_details(listing_id) -> dict:
 
     # policy number
     policy_number = ""
-    policy_match = re.search(r"(STR-\d{7}|Pending|Exempt)", page_text, re.IGNORECASE)
+    policy_match = re.search(r"Policy number:\s*(20\d{2}-00\d{4}STR|STR-\d{7}|\d+)", page_text)
+
     if policy_match:
-        policy_number = policy_match.group(1)
-        if policy_number.lower() == "pending":
-            policy_number = "Pending"
-        elif policy_number.lower() == "exempt":
-            policy_number = "Exempt"
+        raw_policy = policy_match.group(1)
+
+        if re.fullmatch(r"20\d{2}-00\d{4}STR", raw_policy) or re.fullmatch(r"STR-\d{7}", raw_policy):
+            policy_number = raw_policy
+        else:
+            policy_number = raw_policy
+    elif re.search(r"Pending", page_text, re.IGNORECASE):
+        policy_number = "Pending"
+    elif re.search(r"Exempt", page_text, re.IGNORECASE):
+        policy_number = "Exempt"
 
     # host type
     host_type = "regular"
-    if re.search(r"Superhost", page_text, re.IGNORECASE):
+    if "Superhost" in page_text:
         host_type = "Superhost"
 
     # host name
     host_name = ""
-    host_match = re.search(r"Hosted by\s+([A-Za-z]+)", page_text, re.IGNORECASE)
+    host_match = re.search(r"hosted by\s+([A-Za-z]+(?:\s+(?:And|and)\s+[A-Za-z]+)?)", page_text)
+
     if host_match:
-        host_name = host_match.group(1)
-    else:
-        alt_host_match = re.search(r"hosted by\s+([A-Za-z]+)", page_text, re.IGNORECASE)
-        if alt_host_match:
-            host_name = alt_host_match.group(1)
+        host_name = host_match.group(1).replace("\xa0", " ")
 
     # room type
     room_type = ""
-    room_type_match = re.search(
-        r"(Entire room|Private room|Shared room|Hotel room|Entire place|Private room in|Shared room in|Room in)",
-        page_text,
-        re.IGNORECASE
-    )
+    subtitle_match = re.search(r"(Entire|Private|Shared)[^\.]*?(?=hosted by)", page_text, re.IGNORECASE)
 
-    if room_type_match:
-        found = room_type_match.group(1).lower()
-        if "entire" in found:
-            room_type = "Entire Room"
-        elif "private" in found:
+    if subtitle_match:
+        subtitle = subtitle_match.group(0)
+
+        if "Private" in subtitle:
             room_type = "Private Room"
-        elif "shared" in found:
+        elif "Shared" in subtitle:
             room_type = "Shared Room"
-        elif "hotel" in found:
-            room_type = "Hotel Room"
+        else:
+            room_type = "Entire Room"
 
     # location rating
     location_rating = 0.0
-    location_match = re.search(r"Location\s*([0-9]\.[0-9])", page_text, re.IGNORECASE)
-    if not location_match:
-        location_match = re.search(r"Location rating\s*([0-9]\.[0-9])", page_text, re.IGNORECASE)
-    if not location_match:
-        location_match = re.search(r"([0-9]\.[0-9])\s*Location", page_text, re.IGNORECASE)
+    location_match = re.search(r"Location\s+([0-9]\.[0-9])", page_text)
 
     if location_match:
         location_rating = float(location_match.group(1))
@@ -349,61 +329,61 @@ class TestCases(unittest.TestCase):
         self.listings = load_listing_results(self.search_results_path)
         self.detailed_data = create_listing_database(self.search_results_path)
 
-def test_load_listing_results(self):
-    self.assertEqual(len(self.listings), 18)
-    self.assertEqual(self.listings[0], ("Loft in Mission District", "1944564"))
+    def test_load_listing_results(self):
+        self.assertEqual(len(self.listings), 18)
+        self.assertEqual(self.listings[0], ("Loft in Mission District", "1944564"))
 
 
-def test_get_listing_details(self):
-    html_list = ["467507", "1550913", "1944564", "4614763", "6092596"]
-    results = []
+    def test_get_listing_details(self):
+        html_list = ["467507", "1550913", "1944564", "4614763", "6092596"]
+        results = []
 
-    for listing_id in html_list:
-        results.append(get_listing_details(listing_id))
+        for listing_id in html_list:
+            results.append(get_listing_details(listing_id))
 
-    self.assertEqual(results[0]["467507"]["policy_number"], "STR-0005349")
-    self.assertEqual(results[2]["1944564"]["host_type"], "Superhost")
-    self.assertEqual(results[2]["1944564"]["room_type"], "Entire Room")
-    self.assertEqual(results[2]["1944564"]["location_rating"], 4.9)
-
-
-def test_create_listing_database(self):
-    for row in self.detailed_data:
-        self.assertEqual(len(row), 7)
-
-    self.assertEqual(
-        self.detailed_data[-1],
-        ("Guest suite in Mission District", "467507", "STR-0005349", "Superhost", "Jennifer", "Entire Room", 4.8)
-    )
+        self.assertEqual(results[0]["467507"]["policy_number"], "STR-0005349")
+        self.assertEqual(results[2]["1944564"]["host_type"], "Superhost")
+        self.assertEqual(results[2]["1944564"]["room_type"], "Entire Room")
+        self.assertEqual(results[2]["1944564"]["location_rating"], 4.9)
 
 
-def test_output_csv(self):
-    out_path = os.path.join(self.base_dir, "test.csv")
+    def test_create_listing_database(self):
+        for row in self.detailed_data:
+            self.assertEqual(len(row), 7)
 
-    output_csv(self.detailed_data, out_path)
-
-    rows = []
-    with open(out_path, "r", encoding="utf-8-sig") as f:
-        reader = csv.reader(f)
-        for row in reader:
-            rows.append(row)
-
-    self.assertEqual(
-        rows[1],
-        ["Guesthouse in San Francisco", "49591060", "STR-0000253", "Superhost", "Ingrid", "Entire Room", "5.0"]
-    )
-
-    os.remove(out_path)
+        self.assertEqual(
+            self.detailed_data[-1],
+            ("Guest suite in Mission District", "467507", "STR-0005349", "Superhost", "Jennifer", "Entire Room", 4.8)
+        )
 
 
-def test_avg_location_rating_by_room_type(self):
-    result = avg_location_rating_by_room_type(self.detailed_data)
-    self.assertEqual(result["Private Room"], 4.9)
+    def test_output_csv(self):
+        out_path = os.path.join(self.base_dir, "test.csv")
+
+        output_csv(self.detailed_data, out_path)
+
+        rows = []
+        with open(out_path, "r", encoding="utf-8-sig") as f:
+            reader = csv.reader(f)
+            for row in reader:
+                rows.append(row)
+
+        self.assertEqual(
+            rows[1],
+            ["Guesthouse in San Francisco", "49591060", "STR-0000253", "Superhost", "Ingrid", "Entire Room", "5.0"]
+        )
+
+        os.remove(out_path)
 
 
-def test_validate_policy_numbers(self):
-    invalid_listings = validate_policy_numbers(self.detailed_data)
-    self.assertEqual(invalid_listings, ["16204265"])
+    def test_avg_location_rating_by_room_type(self):
+        result = avg_location_rating_by_room_type(self.detailed_data)
+        self.assertEqual(result["Private Room"], 4.9)
+
+
+    def test_validate_policy_numbers(self):
+        invalid_listings = validate_policy_numbers(self.detailed_data)
+        self.assertEqual(invalid_listings, ["16204265"])
 
 
 def main():
