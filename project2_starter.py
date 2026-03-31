@@ -332,7 +332,7 @@ def google_scholar_searcher(query):
     for result in results:
         title = result.get_text(strip=True)
 
-        if title != "":
+        if title:
             titles.append(title)
 
     return titles
